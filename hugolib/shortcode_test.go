@@ -341,7 +341,6 @@ func TestShortcodeWrappedInPIssue(t *testing.T) {
 }
 
 func TestExtractShortcodes(t *testing.T) {
-	t.Parallel()
 	b := newTestSitesBuilder(t).WithSimpleConfigFile()
 
 	b.WithTemplates(
@@ -413,7 +412,10 @@ title: "Shortcodes Galore!"
 		{"inline", `{{< my.inline >}}Hi{{< /my.inline >}}`, regexpCheck("my.inline;inline:true;closing:true;inner:{Hi};")},
 	} {
 
+		test := test
+
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			assert := require.New(t)
 
 			counter := 0
@@ -437,7 +439,6 @@ title: "Shortcodes Galore!"
 }
 
 func TestShortcodesInSite(t *testing.T) {
-	t.Parallel()
 	baseURL := "http://foo/bar"
 
 	tests := []struct {
@@ -577,7 +578,9 @@ title: "Foo"
 	s := buildSingleSite(t, deps.DepsCfg{WithTemplate: addTemplates, Fs: fs, Cfg: cfg}, BuildCfg{})
 
 	for i, test := range tests {
+		test := test
 		t.Run(fmt.Sprintf("test=%d;contentPath=%s", i, test.contentPath), func(t *testing.T) {
+			t.Parallel()
 			if strings.HasSuffix(test.contentPath, ".ad") && !helpers.HasAsciidoc() {
 				t.Skip("Skip Asciidoc test case as no Asciidoc present.")
 			} else if strings.HasSuffix(test.contentPath, ".rst") && !helpers.HasRst() {
@@ -1062,8 +1065,10 @@ String: {{ . | safeHTML }}
 
 func TestInlineShortcodes(t *testing.T) {
 	for _, enableInlineShortcodes := range []bool{true, false} {
+		enableInlineShortcodes := enableInlineShortcodes
 		t.Run(fmt.Sprintf("enableInlineShortcodes=%t", enableInlineShortcodes),
 			func(t *testing.T) {
+				t.Parallel()
 				conf := fmt.Sprintf(`
 baseURL = "https://example.com"
 enableInlineShortcodes = %t

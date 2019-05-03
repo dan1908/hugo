@@ -32,14 +32,15 @@ import (
 
 func TestSiteWithPageOutputs(t *testing.T) {
 	for _, outputs := range [][]string{{"html", "json", "calendar"}, {"json"}} {
+		outputs := outputs
 		t.Run(fmt.Sprintf("%v", outputs), func(t *testing.T) {
+			t.Parallel()
 			doTestSiteWithPageOutputs(t, outputs)
 		})
 	}
 }
 
 func doTestSiteWithPageOutputs(t *testing.T, outputs []string) {
-	t.Parallel()
 
 	outputsStr := strings.Replace(fmt.Sprintf("%q", outputs), " ", ", ", -1)
 

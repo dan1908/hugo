@@ -64,14 +64,15 @@ YAML frontmatter with tags and categories taxonomy.`
 //
 func TestTaxonomiesWithAndWithoutContentFile(t *testing.T) {
 	for _, uglyURLs := range []bool{false, true} {
+		uglyURLs := uglyURLs
 		t.Run(fmt.Sprintf("uglyURLs=%t", uglyURLs), func(t *testing.T) {
+			t.Parallel()
 			doTestTaxonomiesWithAndWithoutContentFile(t, uglyURLs)
 		})
 	}
 }
 
 func doTestTaxonomiesWithAndWithoutContentFile(t *testing.T, uglyURLs bool) {
-	t.Parallel()
 
 	siteConfig := `
 baseURL = "http://example.com/blog"

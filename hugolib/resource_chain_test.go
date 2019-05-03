@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gohugoio/hugo/htesting"
+
 	"github.com/spf13/viper"
 
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,7 @@ func TestSCSSWithIncludePaths(t *testing.T) {
 		t.Skip("Skip SCSS")
 	}
 	assert := require.New(t)
-	workDir, clean, err := createTempDir("hugo-scss-include")
+	workDir, clean, err := htesting.CreateTempDir(hugofs.Os, "hugo-scss-include")
 	assert.NoError(err)
 	defer clean()
 
@@ -84,7 +86,7 @@ func TestSCSSWithThemeOverrides(t *testing.T) {
 		t.Skip("Skip SCSS")
 	}
 	assert := require.New(t)
-	workDir, clean, err := createTempDir("hugo-scss-include")
+	workDir, clean, err := htesting.CreateTempDir(hugofs.Os, "hugo-scss-include")
 	assert.NoError(err)
 	defer clean()
 
@@ -385,14 +387,16 @@ CSV2: {{ $csv2 }}
 	}
 
 	for _, test := range tests {
-		if !test.shouldRun() {
-			t.Log("Skip", test.name)
-			continue
-		}
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			if !test.shouldRun() {
+				t.Skip()
+			}
+			t.Parallel()
 
-		b := newTestSitesBuilder(t).WithLogger(loggers.NewErrorLogger())
-		b.WithSimpleConfigFile()
-		b.WithContent("_index.md", `
+			b := newTestSitesBuilder(t).WithLogger(loggers.NewErrorLogger())
+			b.WithSimpleConfigFile()
+			b.WithContent("_index.md", `
 ---
 title: Home
 ---
@@ -400,37 +404,37 @@ title: Home
 Home.
 
 `,
-			"page1.md", `
+				"page1.md", `
 ---
 title: Hello1
 ---
 
 Hello1
 `,
-			"page2.md", `
+				"page2.md", `
 ---
 title: Hello2
 ---
 
 Hello2
 `,
-			"t1.txt", "t1t|",
-			"t2.txt", "t2t|",
-		)
+				"t1.txt", "t1t|",
+				"t2.txt", "t2t|",
+			)
 
-		b.WithSourceFile(filepath.Join("assets", "css", "styles1.css"), `
+			b.WithSourceFile(filepath.Join("assets", "css", "styles1.css"), `
 h1 {
 	 font-style: bold;
 }
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "js", "script1.js"), `
+			b.WithSourceFile(filepath.Join("assets", "js", "script1.js"), `
 var x;
 x = 5;
 document.getElementById("demo").innerHTML = x * 10;
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "mydata", "json1.json"), `
+			b.WithSourceFile(filepath.Join("assets", "mydata", "json1.json"), `
 {
 "employees":[
     {"firstName":"John", "lastName":"Doe"}, 
@@ -440,19 +444,19 @@ document.getElementById("demo").innerHTML = x * 10;
 }
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "mydata", "svg1.svg"), `
+			b.WithSourceFile(filepath.Join("assets", "mydata", "svg1.svg"), `
 <svg height="100" width="100">
   <line x1="5" y1="10" x2="20" y2="40"/>
 </svg> 
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "mydata", "xml1.xml"), `
+			b.WithSourceFile(filepath.Join("assets", "mydata", "xml1.xml"), `
 <hello>
 <world>Hugo Rocks!</<world>
 </hello>
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "mydata", "html1.html"), `
+			b.WithSourceFile(filepath.Join("assets", "mydata", "html1.html"), `
 <html>
 <a  href="#">
 Cool
@@ -460,7 +464,7 @@ Cool
 </html>
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "scss", "styles2.scss"), `
+			b.WithSourceFile(filepath.Join("assets", "scss", "styles2.scss"), `
 $color: #333;
 
 body {
@@ -468,7 +472,7 @@ body {
 }
 `)
 
-		b.WithSourceFile(filepath.Join("assets", "sass", "styles3.sass"), `
+			b.WithSourceFile(filepath.Join("assets", "sass", "styles3.sass"), `
 $color: #333;
 
 .content-navigation
@@ -476,10 +480,11 @@ $color: #333;
 
 `)
 
-		t.Log("Test", test.name)
-		test.prepare(b)
-		b.Build(BuildCfg{})
-		test.verify(b)
+			test.prepare(b)
+			b.Build(BuildCfg{})
+			test.verify(b)
+
+		})
 	}
 }
 

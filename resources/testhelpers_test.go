@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"fmt"
 	"image"
 	"io"
 	"io/ioutil"
@@ -126,7 +125,7 @@ func fetchResourceForSpec(spec *Spec, assert *require.Assertions, name string) r
 	src, err := os.Open(filepath.FromSlash("testdata/" + name))
 	assert.NoError(err)
 
-	out, err := helpers.OpenFileForWriting(spec.BaseFs.Content.Fs, name)
+	out, err := helpers.OpenFileForWriting(spec.Fs.Source, name)
 	assert.NoError(err)
 	_, err = io.Copy(out, src)
 	out.Close()
@@ -135,7 +134,7 @@ func fetchResourceForSpec(spec *Spec, assert *require.Assertions, name string) r
 
 	factory := newTargetPaths("/a")
 
-	r, err := spec.New(ResourceSourceDescriptor{TargetPaths: factory, LazyPublish: true, SourceFilename: name})
+	r, err := spec.New(ResourceSourceDescriptor{Fs: spec.Fs.Source, TargetPaths: factory, LazyPublish: true, SourceFilename: name})
 	assert.NoError(err)
 
 	return r.(resource.ContentResource)
@@ -144,9 +143,6 @@ func fetchResourceForSpec(spec *Spec, assert *require.Assertions, name string) r
 func assertImageFile(assert *require.Assertions, fs afero.Fs, filename string, width, height int) {
 	filename = filepath.Clean(filename)
 	f, err := fs.Open(filename)
-	if err != nil {
-		printFs(fs, "", os.Stdout)
-	}
 	assert.NoError(err)
 	defer f.Close()
 
@@ -169,23 +165,4 @@ func writeToFs(t testing.TB, fs afero.Fs, filename, content string) {
 	if err := afero.WriteFile(fs, filepath.FromSlash(filename), []byte(content), 0755); err != nil {
 		t.Fatalf("Failed to write file: %s", err)
 	}
-}
-
-func printFs(fs afero.Fs, path string, w io.Writer) {
-	if fs == nil {
-		return
-	}
-	afero.Walk(fs, path, func(path string, info os.FileInfo, err error) error {
-		if info != nil && !info.IsDir() {
-			s := path
-			if lang, ok := info.(hugofs.LanguageAnnouncer); ok {
-				s = s + "\t" + lang.Lang()
-			}
-			if fp, ok := info.(hugofs.FilePather); ok {
-				s += "\tFilename: " + fp.Filename() + "\tBase: " + fp.BaseDir()
-			}
-			fmt.Fprintln(w, "    ", s)
-		}
-		return nil
-	})
 }

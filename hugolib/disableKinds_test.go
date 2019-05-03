@@ -212,12 +212,3 @@ func assertDisabledKind(th testHelper, kindAssert func(bool) bool, disabled []st
 		th.assertFileContent(path, matcher)
 	}
 }
-
-func stringSliceContains(k string, values ...string) bool {
-	for _, v := range values {
-		if k == v {
-			return true
-		}
-	}
-	return false
-}

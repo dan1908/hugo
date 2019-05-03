@@ -33,7 +33,6 @@ import (
 
 	"github.com/bep/gitmap"
 	"github.com/gohugoio/hugo/config"
-	"github.com/spf13/afero"
 
 	"github.com/gohugoio/hugo/publisher"
 
@@ -265,7 +264,7 @@ func newHugoSites(cfg deps.DepsCfg, sites ...*Site) (*HugoSites, error) {
 	langConfig, err := newMultiLingualFromSites(cfg.Cfg, sites...)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create language config")
 	}
 
 	var contentChangeTracker *contentChangeMap
@@ -288,8 +287,11 @@ func newHugoSites(cfg deps.DepsCfg, sites ...*Site) (*HugoSites, error) {
 	}
 
 	h.init.data.Add(func() (interface{}, error) {
-		err := h.loadData(h.PathSpec.BaseFs.Data.Fs)
-		return err, nil
+		err := h.loadData(h.PathSpec.BaseFs.Data.Dirs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load data")
+		}
+		return nil, nil
 	})
 
 	h.init.translations.Add(func() (interface{}, error) {
@@ -303,7 +305,10 @@ func newHugoSites(cfg deps.DepsCfg, sites ...*Site) (*HugoSites, error) {
 
 	h.init.gitInfo.Add(func() (interface{}, error) {
 		err := h.loadGitInfo()
-		return nil, err
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load Git info")
+		}
+		return nil, nil
 	})
 
 	for _, s := range sites {
@@ -311,7 +316,7 @@ func newHugoSites(cfg deps.DepsCfg, sites ...*Site) (*HugoSites, error) {
 	}
 
 	if err := applyDeps(cfg, sites...); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "add site dependencies")
 	}
 
 	h.Deps = sites[0].Deps
@@ -371,7 +376,7 @@ func applyDeps(cfg deps.DepsCfg, sites ...*Site) error {
 
 			siteConfig, err := loadSiteConfig(s.language)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "load site config")
 			}
 			s.siteConfigConfig = siteConfig
 			s.siteRefLinker, err = newSiteRefLinker(s.language, s)
@@ -388,17 +393,17 @@ func applyDeps(cfg deps.DepsCfg, sites ...*Site) error {
 			var err error
 			d, err = deps.New(cfg)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "create deps")
 			}
 
 			d.OutputFormatsConfig = s.outputFormatsConfig
 
 			if err := onCreated(d); err != nil {
-				return err
+				return errors.Wrap(err, "on created")
 			}
 
 			if err = d.LoadResources(); err != nil {
-				return err
+				return errors.Wrap(err, "load resources")
 			}
 
 		} else {
@@ -418,7 +423,7 @@ func applyDeps(cfg deps.DepsCfg, sites ...*Site) error {
 func NewHugoSites(cfg deps.DepsCfg) (*HugoSites, error) {
 	sites, err := createSitesFromConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "from config")
 	}
 	return newHugoSites(cfg, sites...)
 }
@@ -800,41 +805,45 @@ func (h *HugoSites) Pages() page.Pages {
 	return h.Sites[0].AllPages()
 }
 
-func (h *HugoSites) loadData(fs afero.Fs) (err error) {
-	spec := source.NewSourceSpec(h.PathSpec, fs)
-	fileSystem := spec.NewFilesystem("")
+func (h *HugoSites) loadData(fis []hugofs.FileMetaInfo) (err error) {
+	spec := source.NewSourceSpec(h.PathSpec, nil)
+
 	h.data = make(map[string]interface{})
-	for _, r := range fileSystem.Files() {
-		if err := h.handleDataFile(r); err != nil {
+	for _, fi := range fis {
+		fileSystem := spec.NewFilesystemFromFileMetaInfo(fi)
+		files, err := fileSystem.Files()
+		if err != nil {
 			return err
+		}
+		for _, r := range files {
+			if err := h.handleDataFile(r); err != nil {
+				return err
+			}
 		}
 	}
 
 	return
 }
 
-func (h *HugoSites) handleDataFile(r source.ReadableFile) error {
+func (h *HugoSites) handleDataFile(r source.File) error {
 	var current map[string]interface{}
 
-	f, err := r.Open()
+	f, err := r.FileInfo().Meta().Open()
 	if err != nil {
-		return errors.Wrapf(err, "Failed to open data file %q:", r.LogicalName())
+		return errors.Wrapf(err, "data: failed to open %q:", r.LogicalName())
 	}
 	defer f.Close()
 
 	// Crawl in data tree to insert data
 	current = h.data
 	keyParts := strings.Split(r.Dir(), helpers.FilePathSeparator)
-	// The first path element is the virtual folder (typically theme name), which is
-	// not part of the key.
-	if len(keyParts) > 1 {
-		for _, key := range keyParts[1:] {
-			if key != "" {
-				if _, ok := current[key]; !ok {
-					current[key] = make(map[string]interface{})
-				}
-				current = current[key].(map[string]interface{})
+
+	for _, key := range keyParts {
+		if key != "" {
+			if _, ok := current[key]; !ok {
+				current[key] = make(map[string]interface{})
 			}
+			current = current[key].(map[string]interface{})
 		}
 	}
 
@@ -848,15 +857,10 @@ func (h *HugoSites) handleDataFile(r source.ReadableFile) error {
 	}
 
 	// filepath.Walk walks the files in lexical order, '/' comes before '.'
-	// this warning could happen if
-	// 1. A theme uses the same key; the main data folder wins
-	// 2. A sub folder uses the same key: the sub folder wins
 	higherPrecedentData := current[r.BaseFileName()]
 
 	switch data.(type) {
 	case nil:
-		// hear the crickets?
-
 	case map[string]interface{}:
 
 		switch higherPrecedentData.(type) {
@@ -868,7 +872,11 @@ func (h *HugoSites) handleDataFile(r source.ReadableFile) error {
 			higherPrecedentMap := higherPrecedentData.(map[string]interface{})
 			for key, value := range data.(map[string]interface{}) {
 				if _, exists := higherPrecedentMap[key]; exists {
-					h.Log.WARN.Printf("Data for key '%s' in path '%s' is overridden by higher precedence data already in the data tree", key, r.Path())
+					// this warning could happen if
+					// 1. A theme uses the same key; the main data folder wins
+					// 2. A sub folder uses the same key: the sub folder wins
+					// TODO(bep) figure out a way to detect 2) above and make that a WARN
+					h.Log.INFO.Printf("Data for key '%s' in path '%s' is overridden by higher precedence data already in the data tree", key, r.Path())
 				} else {
 					higherPrecedentMap[key] = value
 				}
@@ -896,12 +904,12 @@ func (h *HugoSites) handleDataFile(r source.ReadableFile) error {
 }
 
 func (h *HugoSites) errWithFileContext(err error, f source.File) error {
-	rfi, ok := f.FileInfo().(hugofs.RealFilenameInfo)
+	fim, ok := f.FileInfo().(hugofs.FileMetaInfo)
 	if !ok {
 		return err
 	}
 
-	realFilename := rfi.RealFilename()
+	realFilename := fim.Meta().Filename()
 
 	err, _ = herrors.WithFileContextForFile(
 		err,
@@ -913,8 +921,8 @@ func (h *HugoSites) errWithFileContext(err error, f source.File) error {
 	return err
 }
 
-func (h *HugoSites) readData(f source.ReadableFile) (interface{}, error) {
-	file, err := f.Open()
+func (h *HugoSites) readData(f source.File) (interface{}, error) {
+	file, err := f.FileInfo().Meta().Open()
 	if err != nil {
 		return nil, errors.Wrap(err, "readData: failed to open data file")
 	}

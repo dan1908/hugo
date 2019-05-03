@@ -820,10 +820,10 @@ func TestPageWithLastmodFromGitInfo(t *testing.T) {
 }
 
 func TestPageWithFrontMatterConfig(t *testing.T) {
-	t.Parallel()
-
 	for _, dateHandler := range []string{":filename", ":fileModTime"} {
+		dateHandler := dateHandler
 		t.Run(fmt.Sprintf("dateHandler=%q", dateHandler), func(t *testing.T) {
+			t.Parallel()
 			assrt := require.New(t)
 			cfg, fs := newTestCfg()
 
@@ -1329,11 +1329,12 @@ func TestShouldBuild(t *testing.T) {
 // "dot" in path: #1885 and #2110
 // disablePathToLower regression: #3374
 func TestPathIssues(t *testing.T) {
-	t.Parallel()
 	for _, disablePathToLower := range []bool{false, true} {
 		for _, uglyURLs := range []bool{false, true} {
+			disablePathToLower := disablePathToLower
+			uglyURLs := uglyURLs
 			t.Run(fmt.Sprintf("disablePathToLower=%t,uglyURLs=%t", disablePathToLower, uglyURLs), func(t *testing.T) {
-
+				t.Parallel()
 				cfg, fs := newTestCfg()
 				th := testHelper{cfg, fs, t}
 

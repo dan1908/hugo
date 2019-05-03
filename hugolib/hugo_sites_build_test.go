@@ -246,6 +246,8 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 
 	require.Equal(t, "en", enSite.language.Lang)
 
+	//dumpPages(enSite.RegularPages()...)
+
 	assert.Equal(5, len(enSite.RegularPages()))
 	assert.Equal(32, len(enSite.AllPages()))
 
@@ -447,7 +449,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 	require.NotNil(t, homeEn)
 	assert.Len(homeEn.Translations(), 3)
 
-	contentFs := b.H.BaseFs.Content.Fs
+	contentFs := b.H.Fs.Source
 
 	for i, this := range []struct {
 		preFunc    func(t *testing.T)
@@ -480,9 +482,9 @@ func TestMultiSitesRebuild(t *testing.T) {
 		},
 		{
 			func(t *testing.T) {
-				writeNewContentFile(t, contentFs, "new_en_1", "2016-07-31", "new1.en.md", -5)
-				writeNewContentFile(t, contentFs, "new_en_2", "1989-07-30", "new2.en.md", -10)
-				writeNewContentFile(t, contentFs, "new_fr_1", "2016-07-30", "new1.fr.md", 10)
+				writeNewContentFile(t, contentFs, "new_en_1", "2016-07-31", "content/new1.en.md", -5)
+				writeNewContentFile(t, contentFs, "new_en_2", "1989-07-30", "content/new2.en.md", -10)
+				writeNewContentFile(t, contentFs, "new_fr_1", "2016-07-30", "content/new1.fr.md", 10)
 			},
 			[]fsnotify.Event{
 				{Name: filepath.FromSlash("content/new1.en.md"), Op: fsnotify.Create},
@@ -503,7 +505,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 		},
 		{
 			func(t *testing.T) {
-				p := "sect/doc1.en.md"
+				p := "content/sect/doc1.en.md"
 				doc1 := readFileFromFs(t, contentFs, p)
 				doc1 += "CHANGED"
 				writeToFs(t, contentFs, p, doc1)
@@ -519,7 +521,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 		// Rename a file
 		{
 			func(t *testing.T) {
-				if err := contentFs.Rename("new1.en.md", "new1renamed.en.md"); err != nil {
+				if err := contentFs.Rename("content/new1.en.md", "content/new1renamed.en.md"); err != nil {
 					t.Fatalf("Rename failed: %s", err)
 				}
 			},

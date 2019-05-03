@@ -2,12 +2,13 @@ package hugolib
 
 import (
 	"io"
-	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/pkg/errors"
 
 	"bytes"
 	"fmt"
@@ -39,9 +40,10 @@ import (
 )
 
 type sitesBuilder struct {
-	Cfg config.Provider
-	Fs  *hugofs.Fs
-	T   testing.TB
+	Cfg     config.Provider
+	Fs      *hugofs.Fs
+	T       testing.TB
+	depsCfg deps.DepsCfg
 
 	*require.Assertions
 
@@ -60,13 +62,15 @@ type sitesBuilder struct {
 	theme string
 
 	// Default toml
-	configFormat string
+	configFormat  string
+	configFileSet bool
 
 	// Default is empty.
 	// TODO(bep) revisit this and consider always setting it to something.
 	// Consider this in relation to using the BaseFs.PublishFs to all publishing.
 	workingDir string
 
+	addNothing bool
 	// Base data/content
 	contentFilePairs  []string
 	templateFilePairs []string
@@ -94,22 +98,24 @@ func newTestSitesBuilder(t testing.TB) *sitesBuilder {
 	return &sitesBuilder{T: t, Assertions: require.New(t), Fs: fs, configFormat: "toml", dumper: litterOptions}
 }
 
-func createTempDir(prefix string) (string, func(), error) {
-	workDir, err := ioutil.TempDir("", prefix)
-	if err != nil {
-		return "", nil, err
+func newTestSitesBuilderFromDepsCfg(t testing.TB, d deps.DepsCfg) *sitesBuilder {
+
+	litterOptions := litter.Options{
+		HidePrivateFields: true,
+		StripPackageNames: true,
+		Separator:         " ",
 	}
 
-	if runtime.GOOS == "darwin" && !strings.HasPrefix(workDir, "/private") {
-		// To get the entry folder in line with the rest. This its a little bit
-		// mysterious, but so be it.
-		workDir = "/private" + workDir
-	}
-	return workDir, func() { os.RemoveAll(workDir) }, nil
+	return &sitesBuilder{T: t, Assertions: require.New(t), depsCfg: d, Fs: d.Fs, Cfg: d.Cfg, configFormat: "toml", dumper: litterOptions}
 }
 
 func (s *sitesBuilder) Running() *sitesBuilder {
 	s.running = true
+	return s
+}
+
+func (s *sitesBuilder) WithNothingAdded() *sitesBuilder {
+	s.addNothing = true
 	return s
 }
 
@@ -119,7 +125,7 @@ func (s *sitesBuilder) WithLogger(logger *loggers.Logger) *sitesBuilder {
 }
 
 func (s *sitesBuilder) WithWorkingDir(dir string) *sitesBuilder {
-	s.workingDir = dir
+	s.workingDir = filepath.FromSlash(dir)
 	return s
 }
 
@@ -145,7 +151,9 @@ func (s *sitesBuilder) WithViper(v *viper.Viper) *sitesBuilder {
 }
 
 func (s *sitesBuilder) WithConfigFile(format, conf string) *sitesBuilder {
-	writeSource(s.T, s.Fs, "config."+format, conf)
+	s.configFileSet = true
+	filename := s.absFilename("config." + format)
+	writeSource(s.T, s.Fs, filename, conf)
 	s.configFormat = format
 	return s
 }
@@ -155,13 +163,21 @@ func (s *sitesBuilder) WithThemeConfigFile(format, conf string) *sitesBuilder {
 		s.theme = "test-theme"
 	}
 	filename := filepath.Join("themes", s.theme, "config."+format)
-	writeSource(s.T, s.Fs, filename, conf)
+	writeSource(s.T, s.Fs, s.absFilename(filename), conf)
 	return s
 }
 
 func (s *sitesBuilder) WithSourceFile(filename, content string) *sitesBuilder {
-	writeSource(s.T, s.Fs, filepath.FromSlash(filename), content)
+	writeSource(s.T, s.Fs, s.absFilename(filename), content)
 	return s
+}
+
+func (s *sitesBuilder) absFilename(filename string) string {
+	filename = filepath.FromSlash(filename)
+	if s.workingDir != "" && !strings.HasPrefix(filename, s.workingDir) {
+		filename = filepath.Join(s.workingDir, filename)
+	}
+	return filename
 }
 
 const commonConfigSections = `
@@ -323,7 +339,7 @@ func (s *sitesBuilder) EditFiles(filenameContent ...string) *sitesBuilder {
 	for i := 0; i < len(filenameContent); i += 2 {
 		filename, content := filepath.FromSlash(filenameContent[i]), filenameContent[i+1]
 		changedFiles = append(changedFiles, filename)
-		writeSource(s.T, s.Fs, filename, content)
+		writeSource(s.T, s.Fs, s.absFilename(filename), content)
 
 	}
 	s.changedFiles = changedFiles
@@ -354,6 +370,7 @@ func (s *sitesBuilder) writeFilePairs(folder string, filenameContent []string) *
 
 func (s *sitesBuilder) CreateSites() *sitesBuilder {
 	if err := s.CreateSitesE(); err != nil {
+		herrors.PrintStackTrace(err)
 		s.Fatalf("Failed to create sites: %s", err)
 	}
 
@@ -361,34 +378,69 @@ func (s *sitesBuilder) CreateSites() *sitesBuilder {
 }
 
 func (s *sitesBuilder) LoadConfig() error {
-	cfg, _, err := LoadConfig(ConfigSourceDescriptor{Fs: s.Fs.Source, Filename: "config." + s.configFormat})
+	if !s.configFileSet {
+		loadLanguageSettings(s.Cfg, nil)
+		return nil
+	}
+
+	cfg, _, err := LoadConfig(ConfigSourceDescriptor{
+		WorkingDir: s.workingDir,
+		Fs:         s.Fs.Source,
+		Filename:   "config." + s.configFormat}, func(cfg config.Provider) error {
+		if s.Cfg != nil {
+			return cfg.(*viper.Viper).MergeConfigMap(s.Cfg.(*viper.Viper).AllSettings())
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
+
 	s.Cfg = cfg
+
 	return nil
 }
 
 func (s *sitesBuilder) CreateSitesE() error {
-	s.addDefaults()
-	s.writeFilePairs("content", s.contentFilePairs)
-	s.writeFilePairs("content", s.contentFilePairsAdded)
-	s.writeFilePairs("layouts", s.templateFilePairs)
-	s.writeFilePairs("layouts", s.templateFilePairsAdded)
-	s.writeFilePairs("data", s.dataFilePairs)
-	s.writeFilePairs("data", s.dataFilePairsAdded)
-	s.writeFilePairs("i18n", s.i18nFilePairs)
-	s.writeFilePairs("i18n", s.i18nFilePairsAdded)
-
-	if s.Cfg == nil {
-		if err := s.LoadConfig(); err != nil {
-			return err
+	if _, ok := s.Fs.Source.(*afero.OsFs); ok {
+		for _, dir := range []string{
+			"content/sect",
+			"layouts/_default",
+			"layouts/partials",
+			"layouts/shortcodes",
+			"data",
+			"i18n",
+		} {
+			if err := os.MkdirAll(filepath.Join(s.workingDir, dir), 0777); err != nil {
+				return errors.Wrapf(err, "failed to create %q", dir)
+			}
 		}
 	}
+	if !s.addNothing {
+		s.addDefaults()
+		s.writeFilePairs("content", s.contentFilePairs)
+		s.writeFilePairs("content", s.contentFilePairsAdded)
+		s.writeFilePairs("layouts", s.templateFilePairs)
+		s.writeFilePairs("layouts", s.templateFilePairsAdded)
+		s.writeFilePairs("data", s.dataFilePairs)
+		s.writeFilePairs("data", s.dataFilePairsAdded)
+		s.writeFilePairs("i18n", s.i18nFilePairs)
+		s.writeFilePairs("i18n", s.i18nFilePairsAdded)
+	}
 
-	sites, err := NewHugoSites(deps.DepsCfg{Fs: s.Fs, Cfg: s.Cfg, Logger: s.logger, Running: s.running})
+	if err := s.LoadConfig(); err != nil {
+		return errors.Wrap(err, "failed to load config")
+	}
+
+	depsCfg := s.depsCfg
+	depsCfg.Fs = s.Fs
+	depsCfg.Cfg = s.Cfg
+	depsCfg.Logger = s.logger
+	depsCfg.Running = s.running
+
+	sites, err := NewHugoSites(depsCfg)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create sites")
 	}
 	s.H = sites
 
@@ -554,6 +606,10 @@ func (s *sitesBuilder) AssertHome(matches ...string) {
 }
 
 func (s *sitesBuilder) AssertFileContent(filename string, matches ...string) {
+	filename = filepath.FromSlash(filename)
+	if !strings.HasPrefix(filename, s.workingDir) {
+		filename = filepath.Join(s.workingDir, filename)
+	}
 	content := s.FileContent(filename)
 	for _, match := range matches {
 		if !strings.Contains(content, match) {
@@ -636,11 +692,12 @@ func (th testHelper) replaceDefaultContentLanguageValue(value string) string {
 func newTestCfg() (*viper.Viper, *hugofs.Fs) {
 
 	v := viper.New()
-	fs := hugofs.NewMem(v)
+	fs := hugofs.NewFrom(hugofs.NewBaseFileDecorator(afero.NewMemMapFs()), v)
 
 	v.SetFs(fs.Source)
 
 	loadDefaultSettingsFor(v)
+	loadLanguageSettings(v, nil)
 
 	// Default is false, but true is easier to use as default in tests
 	v.Set("defaultContentLanguageInSubdir", true)
@@ -654,6 +711,7 @@ func newTestSitesFromConfig(t testing.TB, afs afero.Fs, tomlConfig string, layou
 		Fatalf(t, "Layouts must be provided in pairs")
 	}
 
+	writeToFs(t, afs, filepath.Join("content", ".gitkeep"), "")
 	writeToFs(t, afs, "config.toml", tomlConfig)
 
 	cfg, err := LoadConfigDefault(afs)
@@ -694,12 +752,18 @@ func createWithTemplateFromNameValues(additionalTemplates ...string) func(templ 
 	}
 }
 
+// TODO(bep) replace these with the builder
 func buildSingleSite(t testing.TB, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
 	return buildSingleSiteExpected(t, false, false, depsCfg, buildCfg)
 }
 
 func buildSingleSiteExpected(t testing.TB, expectSiteInitEror, expectBuildError bool, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
-	h, err := NewHugoSites(depsCfg)
+	b := newTestSitesBuilderFromDepsCfg(t, depsCfg).
+		WithConfigFile("toml", `
+title="Test Site"
+`).WithNothingAdded()
+
+	err := b.CreateSitesE()
 
 	if expectSiteInitEror {
 		require.Error(t, err)
@@ -707,6 +771,8 @@ func buildSingleSiteExpected(t testing.TB, expectSiteInitEror, expectBuildError 
 	} else {
 		require.NoError(t, err)
 	}
+
+	h := b.H
 
 	require.Len(t, h.Sites, 1)
 
@@ -751,9 +817,13 @@ func content(c resource.ContentProvider) string {
 func dumpPages(pages ...page.Page) {
 	fmt.Println("---------")
 	for i, p := range pages {
-		fmt.Printf("%d: Kind: %s Title: %-10s RelPermalink: %-10s Path: %-10s sections: %s\n",
+		var meta interface{}
+		if p.File() != nil {
+			meta = p.File().FileInfo().Meta()
+		}
+		fmt.Printf("%d: Kind: %s Title: %-10s RelPermalink: %-10s Path: %-10s sections: %s Lang: %s Meta: %v\n",
 			i+1,
-			p.Kind(), p.Title(), p.RelPermalink(), p.Path(), p.SectionsPath())
+			p.Kind(), p.Title(), p.RelPermalink(), p.Path(), p.SectionsPath(), p.Lang(), meta)
 	}
 }
 

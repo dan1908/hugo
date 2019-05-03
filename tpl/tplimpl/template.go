@@ -928,8 +928,8 @@ func (t *templateHandler) addTemplateFile(name, baseTemplatePath, path string) e
 
 		realFilename := filename
 		if fi, err := fs.Stat(filename); err == nil {
-			if fir, ok := fi.(hugofs.RealFilenameInfo); ok {
-				realFilename = fir.RealFilename()
+			if fim, ok := fi.(hugofs.FileMetaInfo); ok {
+				realFilename = fim.Meta().Filename()
 			}
 		}
 

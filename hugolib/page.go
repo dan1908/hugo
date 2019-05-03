@@ -23,6 +23,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gohugoio/hugo/hugofs/files"
+
 	"github.com/bep/gitmap"
 
 	"github.com/gohugoio/hugo/helpers"
@@ -290,7 +292,9 @@ func (p *pageState) getLayoutDescriptor() output.LayoutDescriptor {
 
 		switch p.Kind() {
 		case page.KindSection:
-			section = sections[0]
+			if len(sections) > 0 {
+				section = sections[0]
+			}
 		case page.KindTaxonomyTerm:
 			section = p.getTaxonomyNodeInfo().singular
 		case page.KindTaxonomy:
@@ -365,6 +369,7 @@ func (p *pageState) renderResources() (err error) {
 		var toBeDeleted []int
 
 		for i, r := range p.Resources() {
+
 			if _, ok := r.(page.Page); ok {
 				// Pages gets rendered with the owning page but we count them here.
 				p.s.PathSpec.ProcessingStats.Incr(&p.s.PathSpec.ProcessingStats.Pages)
@@ -843,6 +848,7 @@ func (ps pageStatePages) findPagePosByFilnamePrefix(prefix string) int {
 
 func (s *Site) sectionsFromFile(fi source.File) []string {
 	dirname := fi.Dir()
+
 	dirname = strings.Trim(dirname, helpers.FilePathSeparator)
 	if dirname == "" {
 		return nil
@@ -850,7 +856,7 @@ func (s *Site) sectionsFromFile(fi source.File) []string {
 	parts := strings.Split(dirname, helpers.FilePathSeparator)
 
 	if fii, ok := fi.(*fileInfo); ok {
-		if fii.bundleTp == bundleLeaf && len(parts) > 0 {
+		if len(parts) > 0 && fii.FileInfo().Meta().Classifier() == files.ContentClassLeaf {
 			// my-section/mybundle/index.md => my-section
 			return parts[:len(parts)-1]
 		}

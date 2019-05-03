@@ -319,7 +319,7 @@ func NewCaches(p *helpers.PathSpec) (Caches, error) {
 		var cfs afero.Fs
 
 		if v.isResourceDir {
-			cfs = p.BaseFs.Resources.Fs
+			cfs = p.BaseFs.ResourcesCache
 		} else {
 			cfs = fs
 		}
