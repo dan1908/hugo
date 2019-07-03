@@ -405,7 +405,7 @@ func (b *sourceFilesystemsBuilder) Build() (*SourceFilesystems, error) {
 	b.result.I18n = b.newSourceFilesystem(i18nFs, i18nDirs)
 
 	contentDirs := b.theBigFs.overlayDirs[files.ComponentFolderContent]
-	contentBfs := afero.NewBasePathFs(b.theBigFs.overlayMounts, files.ComponentFolderContent)
+	contentBfs := afero.NewBasePathFs(b.theBigFs.overlayMountsContent, files.ComponentFolderContent)
 
 	contentFs, err := hugofs.NewLanguageFs(b.p.Languages.AsSet(), contentBfs)
 	if err != nil {
@@ -553,14 +553,17 @@ func (b *sourceFilesystemsBuilder) createMainOverlayFs(p *paths.Paths) (*filesys
 }
 
 func (b *sourceFilesystemsBuilder) isContentMount(mnt modules.Mount) bool {
-	return strings.HasPrefix(mnt.Target, "content")
+	return strings.HasPrefix(mnt.Target, files.ComponentFolderContent)
 }
 
 func (b *sourceFilesystemsBuilder) createModFs(
 	collector *filesystemsCollector,
 	md mountsDescriptor) error {
 
-	var fromTo []hugofs.RootMapping
+	var (
+		fromTo        []hugofs.RootMapping
+		fromToContent []hugofs.RootMapping
+	)
 
 	absPathify := func(path string) string {
 		return paths.AbsPathify(md.dir, path)
@@ -607,14 +610,20 @@ OUTER:
 			},
 		}
 
+		isContentMount := b.isContentMount(mount)
+
 		lang := mount.Lang
-		if lang == "" && b.isContentMount(mount) {
+		if lang == "" && isContentMount {
 			lang = b.p.DefaultContentLanguage
 		}
 
 		rm.Meta["lang"] = lang
 
-		fromTo = append(fromTo, rm)
+		if isContentMount {
+			fromToContent = append(fromToContent, rm)
+		} else {
+			fromTo = append(fromTo, rm)
+		}
 	}
 
 	modBase := collector.sourceProject
@@ -626,10 +635,15 @@ OUTER:
 	if err != nil {
 		return err
 	}
+	rmfsContent, err := hugofs.NewRootMappingFs(modBase, fromToContent...)
+	if err != nil {
+		return err
+	}
 
 	// We need to keep the ordered list of directories for watching and
 	// some special merge operations (data, i18n).
 	collector.addDirs(rmfs)
+	collector.addDirs(rmfsContent)
 
 	// TODO(bep) mod
 	if collector.staticPerLanguage != nil {
@@ -655,10 +669,11 @@ OUTER:
 
 	if collector.overlayMounts == nil {
 		collector.overlayMounts = rmfs
+		collector.overlayMountsContent = rmfsContent
 		collector.overlayFull = afero.NewBasePathFs(modBase, md.dir)
 	} else {
-		//collector.overlayMounts = afero.NewCopyOnWriteFs(collector.overlayMounts, rmfs)
-		collector.overlayMounts = hugofs.NewLanguageCompositeFs(collector.overlayMounts, rmfs)
+		collector.overlayMounts = afero.NewCopyOnWriteFs(collector.overlayMounts, rmfs)
+		collector.overlayMountsContent = hugofs.NewLanguageCompositeFs(collector.overlayMountsContent, rmfsContent)
 		collector.overlayFull = afero.NewCopyOnWriteFs(collector.overlayFull, afero.NewBasePathFs(modBase, md.dir))
 	}
 
@@ -690,8 +705,9 @@ type filesystemsCollector struct {
 	sourceProject afero.Fs // Source for project folders
 	sourceModules afero.Fs // Source for modules/themes
 
-	overlayMounts afero.Fs
-	overlayFull   afero.Fs
+	overlayMounts        afero.Fs
+	overlayMountsContent afero.Fs
+	overlayFull          afero.Fs
 
 	// Maps component type (layouts, static, content etc.) an ordered list of
 	// directories representing the overlay filesystems above.

@@ -791,12 +791,12 @@ func TestPageWithLastmodFromGitInfo(t *testing.T) {
 	cfg.Set("languages", langConfig)
 	cfg.Set("enableGitInfo", true)
 
-	assrt.NoError(loadDefaultSettingsFor(cfg))
-	assrt.NoError(loadLanguageSettings(cfg, nil))
-
 	wd, err := os.Getwd()
 	assrt.NoError(err)
 	cfg.Set("workingDir", filepath.Join(wd, "testsite"))
+
+	assrt.NoError(loadDefaultSettingsFor(cfg))
+	assrt.NoError(loadLanguageSettings(cfg, nil))
 
 	h, err := NewHugoSites(deps.DepsCfg{Fs: fs, Cfg: cfg})
 

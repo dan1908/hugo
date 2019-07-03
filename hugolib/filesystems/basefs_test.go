@@ -286,19 +286,16 @@ func TestStaticFsMultiHost(t *testing.T) {
 	v.Set("multihost", true)
 	v.Set("defaultContentLanguage", "en")
 
-	vn := viper.New()
-	vn.Set("staticDir", "nn_static")
-
-	en := langs.NewLanguage("en", v)
-	no := langs.NewLanguage("no", v)
-	no.Set("staticDir", "static_no")
-
-	languages := langs.Languages{
-		en,
-		no,
+	langConfig := map[string]interface{}{
+		"no": map[string]interface{}{
+			"staticDir": "static_no",
+		},
+		"en": map[string]interface{}{},
 	}
 
-	v.Set("languagesSorted", languages)
+	v.Set("languages", langConfig)
+
+	langs.LoadLanguageSettings(v, nil)
 
 	fs := hugofs.NewMem(v)
 
