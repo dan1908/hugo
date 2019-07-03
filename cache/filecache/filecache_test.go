@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gohugoio/hugo/langs"
+
 	"github.com/gohugoio/hugo/common/hugio"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
@@ -85,6 +87,7 @@ dir = ":cacheDir/c"
 
 		cfg, err := config.FromConfigString(configStr, "toml")
 		assert.NoError(err)
+		langs.LoadLanguageSettings(cfg, nil)
 
 		fs := hugofs.NewFrom(osfs, cfg)
 		p, err := helpers.NewPathSpec(fs, cfg)
@@ -209,6 +212,7 @@ dir = "/cache/c"
 
 	cfg, err := config.FromConfigString(configStr, "toml")
 	assert.NoError(err)
+	langs.LoadLanguageSettings(cfg, nil)
 	fs := hugofs.NewMem(cfg)
 	p, err := helpers.NewPathSpec(fs, cfg)
 	assert.NoError(err)

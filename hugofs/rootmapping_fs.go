@@ -231,7 +231,6 @@ func (fs *RootMappingFs) Open(name string) (afero.File, error) {
 	}
 
 	fis, _, err := fs.doLstat(name, true)
-
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +311,6 @@ func (fs *RootMappingFs) newUnionFile(fis ...FileMetaInfo) (afero.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	rf := &rootMappingFile{File: f, fs: fs, name: meta.Name(), meta: meta}
 	if len(fis) == 1 {
 		return rf, err

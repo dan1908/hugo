@@ -52,6 +52,9 @@ func newTestConfig() config.Provider {
 	v.Set("assetDir", "assets")
 	v.Set("resourceDir", "resources")
 	v.Set("publishDir", "public")
+
+	langs.LoadLanguageSettings(v, nil)
+
 	return v
 }
 

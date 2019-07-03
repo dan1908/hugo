@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gohugoio/hugo/langs"
+
 	"github.com/gohugoio/hugo/helpers"
 
 	"github.com/gohugoio/hugo/config"
@@ -57,6 +59,7 @@ dir = "/path/to/c3"
 
 	cfg, err := config.FromConfigString(configStr, "toml")
 	assert.NoError(err)
+	langs.LoadLanguageSettings(cfg, nil)
 	fs := hugofs.NewMem(cfg)
 	p, err := helpers.NewPathSpec(fs, cfg)
 	assert.NoError(err)
@@ -105,6 +108,7 @@ dir = "/path/to/c3"
 
 	cfg, err := config.FromConfigString(configStr, "toml")
 	assert.NoError(err)
+	langs.LoadLanguageSettings(cfg, nil)
 	fs := hugofs.NewMem(cfg)
 	p, err := helpers.NewPathSpec(fs, cfg)
 	assert.NoError(err)
@@ -183,6 +187,7 @@ dir = "/"
 
 	cfg, err := config.FromConfigString(configStr, "toml")
 	assert.NoError(err)
+	langs.LoadLanguageSettings(cfg, nil)
 	fs := hugofs.NewMem(cfg)
 	p, err := helpers.NewPathSpec(fs, cfg)
 	assert.NoError(err)
@@ -202,6 +207,8 @@ func newTestConfig() *viper.Viper {
 	cfg.Set("layoutDir", "layouts")
 	cfg.Set("archetypeDir", "archetypes")
 	cfg.Set("assetDir", "assets")
+
+	langs.LoadLanguageSettings(cfg, nil)
 
 	return cfg
 }

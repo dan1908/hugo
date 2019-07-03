@@ -42,6 +42,7 @@ func newTestCfg() *viper.Viper {
 	v.Set("resourceDir", "resources")
 	v.Set("publishDir", "public")
 	v.Set("archetypeDir", "archetypes")
+	langs.LoadLanguageSettings(v, nil)
 	return v
 }
 

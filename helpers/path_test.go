@@ -83,8 +83,8 @@ func TestMakePathSanitized(t *testing.T) {
 	v.Set("publishDir", "public")
 	v.Set("archetypeDir", "archetypes")
 
-	l := langs.NewDefaultLanguage(v)
-	p, _ := NewPathSpec(hugofs.NewMem(v), l)
+	langs.LoadLanguageSettings(v, nil)
+	p, _ := NewPathSpec(hugofs.NewMem(v), v)
 
 	tests := []struct {
 		input    string

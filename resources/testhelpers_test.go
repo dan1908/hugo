@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gohugoio/hugo/langs"
+
 	"image"
 	"io"
 	"io/ioutil"
@@ -46,6 +48,8 @@ func newTestResourceSpecForBaseURL(assert *require.Assertions, baseURL string) *
 	}
 
 	cfg.Set("imaging", imagingCfg)
+
+	langs.LoadLanguageSettings(cfg, nil)
 
 	fs := hugofs.NewMem(cfg)
 
@@ -90,6 +94,8 @@ func newTestResourceOsFs(assert *require.Assertions) *Spec {
 	cfg.Set("assetDir", "assets")
 	cfg.Set("archetypeDir", "archetypes")
 	cfg.Set("publishDir", "public")
+
+	langs.LoadLanguageSettings(cfg, nil)
 
 	fs := hugofs.NewFrom(hugofs.Os, cfg)
 	fs.Destination = &afero.MemMapFs{}

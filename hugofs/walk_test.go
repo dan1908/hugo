@@ -153,6 +153,7 @@ func collectFilenames(fs afero.Fs, base, root string) ([]string, error) {
 		if err != nil {
 			return err
 		}
+
 		if info.IsDir() {
 			return nil
 		}

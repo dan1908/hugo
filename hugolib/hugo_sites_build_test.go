@@ -674,38 +674,6 @@ title = "Svenska"
 
 }
 
-func TestChangeDefaultLanguage(t *testing.T) {
-	t.Parallel()
-
-	assert := require.New(t)
-
-	b := newMultiSiteTestBuilder(t, "", "", map[string]interface{}{
-		"DefaultContentLanguage":         "fr",
-		"DefaultContentLanguageInSubdir": false,
-	})
-	b.CreateSites().Build(BuildCfg{})
-
-	b.AssertFileContent("public/sect/doc1/index.html", "Single", "Bonjour")
-	b.AssertFileContent("public/en/sect/doc2/index.html", "Single", "Hello")
-
-	// Switch language
-	b.WithNewConfigData(map[string]interface{}{
-		"DefaultContentLanguage":         "en",
-		"DefaultContentLanguageInSubdir": false,
-	})
-
-	assert.NoError(b.LoadConfig())
-	err := b.H.Build(BuildCfg{NewConfig: b.Cfg})
-
-	if err != nil {
-		t.Fatalf("Failed to rebuild sites: %s", err)
-	}
-
-	// Default language is now en, so that should now be the "root" language
-	b.AssertFileContent("public/fr/sect/doc1/index.html", "Single", "Bonjour")
-	b.AssertFileContent("public/sect/doc2/index.html", "Single", "Hello")
-}
-
 // https://github.com/gohugoio/hugo/issues/4706
 func TestContentStressTest(t *testing.T) {
 	b := newTestSitesBuilder(t)

@@ -28,8 +28,6 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/spf13/afero"
-
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/tpl"
@@ -635,9 +633,8 @@ outputs: ["CSV"]
 CSV: {{< myShort >}}
 `
 
-	mf := afero.NewMemMapFs()
-
-	th, h := newTestSitesFromConfig(t, mf, siteConfig,
+	b := newTestSitesBuilder(t).WithConfigFile("toml", siteConfig)
+	b.WithTemplates(
 		"layouts/_default/single.html", `Single HTML: {{ .Title }}|{{ .Content }}`,
 		"layouts/_default/single.json", `Single JSON: {{ .Title }}|{{ .Content }}`,
 		"layouts/_default/single.csv", `Single CSV: {{ .Title }}|{{ .Content }}`,
@@ -654,14 +651,13 @@ CSV: {{< myShort >}}
 		"layouts/shortcodes/myInner.html", `myInner:--{{- .Inner -}}--`,
 	)
 
-	fs := th.Fs
+	b.WithContent("_index.md", fmt.Sprintf(pageTemplate, "Home"),
+		"sect/mypage.md", fmt.Sprintf(pageTemplate, "Single"),
+		"sect/mycsvpage.md", fmt.Sprintf(pageTemplateCSVOnly, "Single CSV"),
+	)
 
-	writeSource(t, fs, "content/_index.md", fmt.Sprintf(pageTemplate, "Home"))
-	writeSource(t, fs, "content/sect/mypage.md", fmt.Sprintf(pageTemplate, "Single"))
-	writeSource(t, fs, "content/sect/mycsvpage.md", fmt.Sprintf(pageTemplateCSVOnly, "Single CSV"))
-
-	err := h.Build(BuildCfg{})
-	require.NoError(t, err)
+	b.Build(BuildCfg{})
+	h := b.H
 	require.Len(t, h.Sites, 1)
 
 	s := h.Sites[0]
@@ -669,7 +665,7 @@ CSV: {{< myShort >}}
 	require.NotNil(t, home)
 	require.Len(t, home.OutputFormats(), 3)
 
-	th.assertFileContent("public/index.html",
+	b.AssertFileContent("public/index.html",
 		"Home HTML",
 		"ShortHTML",
 		"ShortNoExt",
@@ -677,7 +673,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortHTML--",
 	)
 
-	th.assertFileContent("public/amp/index.html",
+	b.AssertFileContent("public/amp/index.html",
 		"Home AMP",
 		"ShortAMP",
 		"ShortNoExt",
@@ -685,7 +681,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortAMP--",
 	)
 
-	th.assertFileContent("public/index.ics",
+	b.AssertFileContent("public/index.ics",
 		"Home Calendar",
 		"ShortCalendar",
 		"ShortNoExt",
@@ -693,7 +689,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortCalendar--",
 	)
 
-	th.assertFileContent("public/sect/mypage/index.html",
+	b.AssertFileContent("public/sect/mypage/index.html",
 		"Single HTML",
 		"ShortHTML",
 		"ShortNoExt",
@@ -701,7 +697,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortHTML--",
 	)
 
-	th.assertFileContent("public/sect/mypage/index.json",
+	b.AssertFileContent("public/sect/mypage/index.json",
 		"Single JSON",
 		"ShortJSON",
 		"ShortNoExt",
@@ -709,7 +705,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortJSON--",
 	)
 
-	th.assertFileContent("public/amp/sect/mypage/index.html",
+	b.AssertFileContent("public/amp/sect/mypage/index.html",
 		// No special AMP template
 		"Single HTML",
 		"ShortAMP",
@@ -718,7 +714,7 @@ CSV: {{< myShort >}}
 		"myInner:--ShortAMP--",
 	)
 
-	th.assertFileContent("public/sect/mycsvpage/index.csv",
+	b.AssertFileContent("public/sect/mycsvpage/index.csv",
 		"Single CSV",
 		"ShortCSV",
 	)

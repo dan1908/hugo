@@ -406,7 +406,7 @@ func TestPageBundlerSiteWitSymbolicLinksInContent(t *testing.T) {
 
 	th := testHelper{s.Cfg, s.Fs, t}
 
-	assert.Equal(5, len(s.RegularPages()))
+	assert.Equal(7, len(s.RegularPages()))
 	a1Bundle := s.getPage(page.KindPage, "symbolic2/a1/index.md")
 	assert.NotNil(a1Bundle)
 	assert.Equal(2, len(a1Bundle.Resources()))

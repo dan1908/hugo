@@ -137,6 +137,6 @@ weight = 1
 	assert.NoError(err)
 
 	//fmt.Println(litter.Sdump(modCfg))
-	assert.Len(modCfg.Mounts, 9)
+	assert.Len(modCfg.Mounts, 17)
 
 }

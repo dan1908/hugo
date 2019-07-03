@@ -64,6 +64,7 @@ func newTestPathSpec() *helpers.PathSpec {
 
 func newTestPathSpecFor(cfg config.Provider) *helpers.PathSpec {
 	config.SetBaseTestDefaults(cfg)
+	langs.LoadLanguageSettings(cfg, nil)
 	fs := hugofs.NewMem(cfg)
 	s, err := helpers.NewPathSpec(fs, cfg)
 	if err != nil {

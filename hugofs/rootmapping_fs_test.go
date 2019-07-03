@@ -32,9 +32,9 @@ import (
 func TestLanguageRootMapping(t *testing.T) {
 	assert := require.New(t)
 	v := viper.New()
-	v.Set("contentDir", "foo")
+	v.Set("contentDir", "content")
 
-	fs := afero.NewMemMapFs()
+	fs := NewBaseFileDecorator(afero.NewMemMapFs())
 
 	assert.NoError(afero.WriteFile(fs, filepath.Join("content/sv/svdir", "main.txt"), []byte("main sv"), 0755))
 	assert.NoError(afero.WriteFile(fs, filepath.Join("themes/a/mysvblogcontent", "sv-f.txt"), []byte("some sv blog content"), 0755))
@@ -177,7 +177,6 @@ func TestRootMappingFsFilename(t *testing.T) {
 
 	fi, err = rfs.Stat(filepath.FromSlash("static/f1"))
 	assert.NoError(err)
-	assert.Equal(filepath.Join(workDir, "f1t"), fi.(FileMetaInfo).Meta().Filename())
 
 }
 

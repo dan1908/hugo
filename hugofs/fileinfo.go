@@ -213,7 +213,7 @@ func (fi *dirNameOnlyFileInfo) Mode() os.FileMode {
 }
 
 func (fi *dirNameOnlyFileInfo) ModTime() time.Time {
-	panic("not implemented")
+	return time.Time{}
 }
 
 func (fi *dirNameOnlyFileInfo) IsDir() bool {

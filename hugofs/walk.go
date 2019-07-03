@@ -214,6 +214,7 @@ func (w *Walkway) walk(path string, info FileMetaInfo, dirEntries []FileMetaInfo
 			panic(fmt.Sprintf("[%s] no name set in %v", path, meta))
 		}
 		pathn := filepath.Join(path, name)
+
 		pathMeta := pathn
 		if w.basePath != "" {
 			pathMeta = strings.TrimPrefix(pathn, w.basePath)
@@ -223,6 +224,7 @@ func (w *Walkway) walk(path string, info FileMetaInfo, dirEntries []FileMetaInfo
 		meta[metaKeyPathWalk] = pathn
 
 		if fim.IsDir() && w.isSeen(meta.Filename()) {
+
 			// Prevent infinite recursion
 			// Possible cyclic reference
 			// TODO(bep) mod check if we log some warning about this in the

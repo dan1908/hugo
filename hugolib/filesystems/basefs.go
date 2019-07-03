@@ -515,7 +515,11 @@ OUTER:
 			if j == i || mount2.Target != mount.Target {
 				continue
 			}
-			if strings.HasPrefix(mount2.Source, mount.Source) {
+			source := mount.Source
+			if !strings.HasSuffix(source, filePathSeparator) {
+				source += filePathSeparator
+			}
+			if strings.HasPrefix(mount2.Source, source) {
 				continue OUTER
 			}
 		}

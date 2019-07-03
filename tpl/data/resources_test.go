@@ -186,14 +186,14 @@ func newDeps(cfg config.Provider) *deps.Deps {
 	cfg.Set("layoutDir", "layouts")
 	cfg.Set("archetypeDir", "archetypes")
 
-	l := langs.NewLanguage("en", cfg)
-	l.Set("i18nDir", "i18n")
-	cs, err := helpers.NewContentSpec(l)
+	langs.LoadLanguageSettings(cfg, nil)
+
+	cs, err := helpers.NewContentSpec(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	fs := hugofs.NewMem(l)
+	fs := hugofs.NewMem(cfg)
 	logger := loggers.NewErrorLogger()
 
 	p, err := helpers.NewPathSpec(fs, cfg)

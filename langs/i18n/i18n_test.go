@@ -219,6 +219,7 @@ func getConfig() *viper.Viper {
 	v.Set("assetDir", "assets")
 	v.Set("resourceDir", "resources")
 	v.Set("publishDir", "public")
+	langs.LoadLanguageSettings(v, nil)
 	return v
 
 }

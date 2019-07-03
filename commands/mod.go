@@ -167,7 +167,7 @@ func (c *modCmd) newModsClient(cfg config.Provider) (*modules.Client, error) {
 			themesDir = filepath.Join(workingDir, themesDir)
 		}
 		var err error
-		modConfig, err = modules.DecodeConfig(cfg)
+		modConfig, err = modules.DecodeConfig(cfg, true)
 		if err != nil {
 			return nil, err
 		}

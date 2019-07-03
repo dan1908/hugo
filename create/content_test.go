@@ -64,8 +64,9 @@ func TestNewContent(t *testing.T) {
 	}
 
 	for i, c := range cases {
-		cfg, fs := newTestCfg(assert, nil)
-		assert.NoError(initFs(fs))
+		mm := afero.NewMemMapFs()
+		assert.NoError(initFs(mm))
+		cfg, fs := newTestCfg(assert, mm)
 		h, err := hugolib.NewHugoSites(deps.DepsCfg{Cfg: cfg, Fs: fs})
 		assert.NoError(err)
 
@@ -112,8 +113,8 @@ i18n: {{ T "hugo" }}
 	assert.NoError(afero.WriteFile(mm, filepath.Join(archetypeThemeDir, "index.md"), []byte(fmt.Sprintf(contentFile, "index.md")), 0755))
 	assert.NoError(afero.WriteFile(mm, filepath.Join(archetypeThemeDir, "resources", "hugo1.json"), []byte(`hugo1: {{ printf "no template handling in here" }}`), 0755))
 
+	assert.NoError(initFs(mm))
 	cfg, fs := newTestCfg(assert, mm)
-	assert.NoError(initFs(fs))
 
 	h, err := hugolib.NewHugoSites(deps.DepsCfg{Cfg: cfg, Fs: fs})
 	assert.NoError(err)
@@ -137,7 +138,7 @@ i18n: {{ T "hugo" }}
 
 }
 
-func initFs(fs *hugofs.Fs) error {
+func initFs(fs afero.Fs) error {
 	perm := os.FileMode(0755)
 	var err error
 
@@ -148,7 +149,7 @@ func initFs(fs *hugofs.Fs) error {
 		filepath.Join("themes", "sample", "archetypes"),
 	}
 	for _, dir := range dirs {
-		err = fs.Source.Mkdir(dir, perm)
+		err = fs.Mkdir(dir, perm)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
@@ -200,7 +201,7 @@ Some text.
 `,
 		},
 	} {
-		f, err := fs.Source.Create(v.path)
+		f, err := fs.Create(v.path)
 		if err != nil {
 			return err
 		}
