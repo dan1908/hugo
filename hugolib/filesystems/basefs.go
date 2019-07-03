@@ -29,14 +29,11 @@ import (
 
 	"github.com/gohugoio/hugo/modules"
 
-	"github.com/gohugoio/hugo/config"
-
 	"github.com/gohugoio/hugo/hugofs"
 
 	"fmt"
 
 	"github.com/gohugoio/hugo/hugolib/paths"
-	"github.com/gohugoio/hugo/langs"
 	"github.com/spf13/afero"
 )
 
@@ -437,74 +434,6 @@ func (b *sourceFilesystemsBuilder) Build() (*SourceFilesystems, error) {
 
 }
 
-func (b *sourceFilesystemsBuilder) existsInSource(abspath string) bool {
-	exists, _ := afero.Exists(b.sourceFs, abspath)
-	return exists
-}
-
-func getStaticDirs(cfg config.Provider) []string {
-	var staticDirs []string
-	for i := -1; i <= 10; i++ {
-		staticDirs = append(staticDirs, getStringOrStringSlice(cfg, "staticDir", i)...)
-	}
-	return staticDirs
-}
-
-func getStringOrStringSlice(cfg config.Provider, key string, id int) []string {
-
-	if id >= 0 {
-		key = fmt.Sprintf("%s%d", key, id)
-	}
-
-	return config.GetStringSlicePreserveString(cfg, key)
-
-}
-
-// TODO(bep) mod remove
-func (b *sourceFilesystemsBuilder) createContentMounts() ([]modules.Mount, error) {
-
-	defaultContentLanguage := b.p.DefaultContentLanguage
-	languages := b.p.Languages
-
-	var contentLanguages langs.Languages
-	var contentDirSeen = make(map[string]bool)
-	languageSet := make(map[string]bool)
-
-	// The default content language needs to be first.
-	for _, language := range languages {
-		if language.Lang == defaultContentLanguage {
-			contentLanguages = append(contentLanguages, language)
-			contentDirSeen[language.ContentDir] = true
-		}
-		languageSet[language.Lang] = true
-	}
-
-	for _, language := range languages {
-		if contentDirSeen[language.ContentDir] {
-			continue
-		}
-		if language.ContentDir == "" {
-			language.ContentDir = defaultContentLanguage
-		}
-		contentDirSeen[language.ContentDir] = true
-		contentLanguages = append(contentLanguages, language)
-
-	}
-
-	mounts := make([]modules.Mount, len(contentLanguages))
-
-	for i, language := range contentLanguages {
-		mounts[i] = modules.Mount{
-			Source: language.ContentDir,
-			Target: files.ComponentFolderContent,
-			Lang:   language.Lang,
-		}
-	}
-
-	return mounts, nil
-
-}
-
 func (b *sourceFilesystemsBuilder) createMainOverlayFs(p *paths.Paths) (*filesystemsCollector, error) {
 
 	mods := p.AllModules
@@ -768,19 +697,4 @@ func (b *sourceFilesystemsBuilder) createOverlayFs(collector *filesystemsCollect
 	}
 
 	return b.createOverlayFs(collector, mounts[1:])
-}
-
-func removeDuplicatesKeepRight(in []string) []string {
-	seen := make(map[string]bool)
-	var out []string
-	for i := len(in) - 1; i >= 0; i-- {
-		v := in[i]
-		if seen[v] {
-			continue
-		}
-		out = append([]string{v}, out...)
-		seen[v] = true
-	}
-
-	return out
 }
