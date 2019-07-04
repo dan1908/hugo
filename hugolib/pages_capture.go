@@ -16,6 +16,7 @@ package hugolib
 import (
 	"context"
 	"fmt"
+	"os"
 	pth "path"
 	"path/filepath"
 	"sort"
@@ -113,18 +114,47 @@ type pagesCollector struct {
 func (c *pagesCollector) Collect() error {
 	c.proc.Start(context.Background())
 
-	cerr := c.doCollect()
+	var collectErr error
+	if len(c.filenames) == 0 {
+		// Collect everything.
+		collectErr = c.collectFileOrDir("")
+	} else {
+		// Simple for now
+		// TODO(bep) mod
+		dirsCollected := make(map[string]bool)
+		for _, filename := range c.filenames {
+			filename = c.sp.RelContentDir(filename)
+			dirname := filepath.Dir(filename)
+			if dirsCollected[dirname] {
+				continue
+			}
+			dirsCollected[dirname] = true
+			collectErr = c.collectFileOrDir(dirname)
+			if collectErr != nil {
+				break
+			}
+		}
+
+	}
 
 	err := c.proc.Wait()
 
-	if cerr != nil {
-		return cerr
+	if collectErr != nil {
+		return collectErr
 	}
 
 	return err
 }
 
-func (c *pagesCollector) doCollect() error {
+func (c *pagesCollector) collectFileOrDir(filename string) error {
+	fi, err := c.fs.Stat(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// May have been deleted.
+			return nil
+		}
+		return err
+	}
 
 	handleDir := func(
 		btype bundleDirType,
@@ -220,6 +250,8 @@ func (c *pagesCollector) doCollect() error {
 
 	w := hugofs.NewWalkway(hugofs.WalkwayConfig{
 		Fs:      c.fs,
+		Root:    filename,
+		Info:    fi.(hugofs.FileMetaInfo),
 		HookPre: preHook,
 		WalkFn:  wfn})
 
