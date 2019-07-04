@@ -18,7 +18,10 @@ import (
 	"fmt"
 	pth "path"
 	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/gohugoio/hugo/helpers"
 
 	"github.com/gohugoio/hugo/config"
 
@@ -43,13 +46,38 @@ import (
 
 const contentClassifierMetaKey = "classifier"
 
-func newPagesCollector(sp *source.SourceSpec, logger *loggers.Logger, proc pagesCollectorProcessorProvider) *pagesCollector {
+func newPagesCollector(sp *source.SourceSpec, logger *loggers.Logger, proc pagesCollectorProcessorProvider, filenames ...string) *pagesCollector {
+
+	// TODO(bep) the "index" vs "_index" check/strings should be moved in one place.
+	isBundleHeader := func(filename string) bool {
+		base := filepath.Base(filename)
+		name := helpers.Filename(base)
+		return files.IsContentFile(base) && (name == "index" || name == "_index")
+	}
+
+	// Make sure that any bundle header files are processed before the others. This makes
+	// sure that any bundle head is processed before its resources.
+	sort.Slice(filenames, func(i, j int) bool {
+		a, b := filenames[i], filenames[j]
+		ac, bc := isBundleHeader(a), isBundleHeader(b)
+
+		if ac {
+			return true
+		}
+
+		if bc {
+			return false
+		}
+
+		return a < b
+	})
 
 	return &pagesCollector{
-		fs:     sp.SourceFs,
-		proc:   proc,
-		sp:     sp,
-		logger: logger,
+		fs:        sp.SourceFs,
+		proc:      proc,
+		sp:        sp,
+		logger:    logger,
+		filenames: filenames,
 	}
 }
 
@@ -75,19 +103,59 @@ type pagesCollector struct {
 	fs     afero.Fs
 	logger *loggers.Logger
 
+	// Ordered list (bundle headers first) used in partial builds.
+	filenames []string
+
 	proc pagesCollectorProcessorProvider
 }
 
 // Collect.
 func (c *pagesCollector) Collect() error {
-
 	c.proc.Start(context.Background())
 
+	cerr := c.doCollect()
+
+	err := c.proc.Wait()
+
+	if cerr != nil {
+		return cerr
+	}
+
+	return err
+}
+
+func (c *pagesCollector) doCollect() error {
+
+	handleDir := func(
+		btype bundleDirType,
+		dir hugofs.FileMetaInfo,
+		path string,
+		readdir []hugofs.FileMetaInfo) error {
+
+		if btype == bundleBranch {
+			if err := c.handleBundleBranch(readdir); err != nil {
+				return err
+			}
+			// A branch bundle is only this directory level, so keep walking.
+			return nil
+		} else if btype == bundleLeaf {
+			if err := c.handleBundleLeaf(dir, path, readdir); err != nil {
+				return err
+			}
+
+			return nil
+		}
+
+		if err := c.handleFiles(readdir...); err != nil {
+			return err
+		}
+
+		return nil
+
+	}
+
 	preHook := func(dir hugofs.FileMetaInfo, path string, readdir []hugofs.FileMetaInfo) ([]hugofs.FileMetaInfo, error) {
-		var (
-			isBranchBundle bool
-			isLeafBundle   bool
-		)
+		var btype bundleDirType
 
 		// We merge language directories, so there can be duplicates, but they
 		// will be ordered, most important first.
@@ -113,9 +181,9 @@ func (c *pagesCollector) Collect() error {
 
 			switch class {
 			case files.ContentClassLeaf:
-				isLeafBundle = true
+				btype = bundleLeaf
 			case files.ContentClassBranch:
-				isBranchBundle = true
+				btype = bundleBranch
 			}
 
 		}
@@ -127,26 +195,19 @@ func (c *pagesCollector) Collect() error {
 			}
 		}
 
-		if isBranchBundle {
-			if err := c.handleBundleBranch(readdir); err != nil {
-				return nil, err
-			}
-			// A branch bundle is only this directory level, so keep walking.
-			return readdir, nil
-		} else if isLeafBundle {
-
-			if err := c.handleBundleLeaf(dir, path, readdir); err != nil {
-				return nil, err
-			}
-
-			return nil, filepath.SkipDir
-		}
-
-		if err := c.handleFiles(readdir...); err != nil {
+		err := handleDir(btype, dir, path, readdir)
+		if err != nil {
 			return nil, err
 		}
 
+		if btype == bundleLeaf {
+			// Any sub folders are handled by handleDir.
+			return nil, filepath.SkipDir
+		}
+
+		// Keep walking.
 		return readdir, nil
+
 	}
 
 	wfn := func(path string, info hugofs.FileMetaInfo, err error) error {
@@ -162,15 +223,8 @@ func (c *pagesCollector) Collect() error {
 		HookPre: preHook,
 		WalkFn:  wfn})
 
-	walkErr := w.Walk()
+	return w.Walk()
 
-	err := c.proc.Wait()
-
-	if walkErr != nil {
-		return walkErr
-	}
-
-	return err
 }
 
 func (c *pagesCollector) isBundleHeader(fi hugofs.FileMetaInfo) bool {

@@ -289,6 +289,18 @@ func (p *Paths) AbsPathify(inPath string) string {
 	return AbsPathify(p.WorkingDir, inPath)
 }
 
+// RelPathify trims any WorkingDir prefix from the given filename. If
+// the filename is not considered to be absolute, the path is just cleaned.
+func (p *Paths) RelPathify(filename string) string {
+	filename = filepath.Clean(filename)
+	if !filepath.IsAbs(filename) {
+		return filename
+	}
+
+	return strings.TrimPrefix(strings.TrimPrefix(filename, p.WorkingDir), FilePathSeparator)
+
+}
+
 // AbsPathify creates an absolute path if given a working dir and arelative path.
 // If already absolute, the path is just cleaned.
 func AbsPathify(workingDir, inPath string) string {
